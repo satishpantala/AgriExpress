@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgriExpress</title>
+<style>
+  :root { --green:#1B5E20; --amber:#F57F17; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; font-family:system-ui,sans-serif; overflow:hidden; background:#000; }
+  #scene { position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0; }
+  #app { position:fixed; inset:0; z-index:2; overflow-y:auto; padding:14px 12px 40px; }
+  .wrap { max-width:560px; margin:0 auto; display:flex; flex-direction:column; gap:12px; }
+  .top { display:flex; justify-content:space-between; align-items:flex-start; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  .top h1 { margin:0; font-size:24px; }
+  .top p { margin:2px 0 0; font-size:13px; }
+  .top .r { text-align:right; font-size:13px; }
+  #clock { font-variant-numeric:tabular-nums; font-weight:700; font-size:16px; }
+  .pill { background:rgba(255,255,255,.85); color:var(--green); border:0; border-radius:20px; padding:5px 12px; font-weight:700; font-size:12px; margin-top:4px; }
+  .tabs { display:flex; gap:6px; }
+  .tabs button { flex:1; padding:10px 4px; border:0; border-radius:12px; background:rgba(255,255,255,.55); font-weight:700; color:#1c1c1c; font-size:14px; }
+  .tabs button.on { background:var(--green); color:#fff; }
+  .card { background:rgba(255,255,255,.9); backdrop-filter:blur(6px); border-radius:16px; padding:14px; box-shadow:0 6px 20px rgba(0,0,0,.25); color:#1c1c1c; }
+  .card h2 { margin:0 0 8px; font-size:16px; color:var(--green); }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .full { grid-column:1/-1; }
+  label { font-size:12px; font-weight:600; display:block; margin-bottom:2px; }
+  input,select { width:100%; padding:10px; border:1px solid #bdbdbd; border-radius:10px; font-size:15px; background:#fff; }
+  .with-btn { display:flex; gap:4px; }
+  .with-btn button { border:0; background:#e8f5e9; border-radius:10px; padding:0 10px; font-size:16px; }
+  .with-btn input { flex:1; min-width:0; width:auto; }
+  .with-btn button { flex:none; min-width:46px; min-height:44px; cursor:pointer; }
+  button { touch-action:manipulation; -webkit-tap-highlight-color:rgba(0,0,0,.1); }
+  .btn { background:var(--amber); color:#fff; border:0; border-radius:12px; padding:12px; font-size:16px; font-weight:700; width:100%; margin-top:10px; }
+  .btn.alt { background:var(--green); }
+  #saveFarmer,#saveExp { position:sticky; bottom:8px; z-index:5; box-shadow:0 4px 14px rgba(0,0,0,.35); min-height:48px; cursor:pointer; }
+  #login { position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(0,0,0,.5); }
+  #login.hide { display:none; }
+  #login .card { width:100%; max-width:360px; }
+  #loginErr { color:#b71c1c; font-size:13px; min-height:18px; margin-top:6px; font-weight:600; }
+  #toast { position:fixed; left:50%; bottom:80px; transform:translateX(-50%); background:#1B5E20; color:#fff; padding:10px 18px; border-radius:24px; font-weight:700; z-index:50; opacity:0; pointer-events:none; transition:opacity .25s; }
+  #toast.show { opacity:1; }
+  #toast.warn { background:#b71c1c; }
+  .item { display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid #e0e0e0; font-size:14px; }
+  .item small { color:#555; }
+  .amt { font-weight:800; color:var(--green); font-size:16px; }
+  .acts { width:100%; display:flex; gap:6px; flex-wrap:wrap; }
+  .acts button { border:0; border-radius:8px; padding:6px 10px; font-size:12px; font-weight:600; background:#fff3e0; }
+  .acts button.red { background:#ffebee; color:#b71c1c; }
+  .row { display:flex; justify-content:space-between; padding:6px 0; font-size:15px; }
+  .big { font-size:20px; font-weight:800; }
+  .hide { display:none; }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="toast"></div>
+<div id="login" class="hide"><div class="card">
+  <h2>🔒 AgriExpress login</h2>
+  <label>Email</label><input id="loginEmail" type="email" autocomplete="username" autocapitalize="none">
+  <label style="margin-top:8px">Password</label><input id="loginPass" type="password" autocomplete="current-password">
+  <div id="loginErr"></div>
+  <button type="button" class="btn" id="loginBtn">Login</button>
+</div></div>
+<div id="app"><div class="wrap">
+
+  <div class="top">
+    <div><h1>🌾 AgriExpress</h1><p id="phase">Live from the field</p></div>
+    <div class="r"><div id="clock">--:--:--</div>
+      <button class="pill" id="langBtn">తెలుగు</button><br>
+      <span class="pill" id="sync" style="display:inline-block">…</span>
+      <button type="button" class="pill" id="logoutBtn" style="display:none">Logout</button></div>
+  </div>
+
+  <div class="tabs">
+    <button class="on" data-tab="farmers" data-i="farmers">Farmers</button>
+    <button data-tab="expenses" data-i="expenses">Expenses</button>
+    <button data-tab="summary" data-i="summary">Summary</button>
+  </div>
+
+  <!-- FARMERS -->
+  <section id="tab-farmers" class="wrap">
+    <div class="card">
+      <h2 data-i="newEntry">New farmer entry</h2>
+      <div class="grid">
+        <div class="full"><label data-i="nameEn">Name (English)</label>
+          <div class="with-btn"><input id="f_name"><button type="button" data-mic="f_name" data-ml="en-IN">🎤</button><button type="button" data-tr="f_name" data-to="f_name_te" data-dir="en|te">🔁</button></div></div>
+        <div class="full"><label data-i="nameTe">Name (Telugu)</label>
+          <div class="with-btn"><input id="f_name_te"><button type="button" data-mic="f_name_te" data-ml="te-IN">🎤</button><button type="button" data-tr="f_name_te" data-to="f_name" data-dir="te|en">🔁</button></div></div>
+        <div class="full"><label data-i="village">Village</label>
+          <div class="with-btn"><input id="f_village"><button data-mic="f_village">🎤</button><button data-tr="f_village">🔁</button></div></div>
+        <div><label data-i="mobile">Mobile</label><input id="f_mobile" type="tel" inputmode="numeric" maxlength="10"></div>
+        <div><label data-i="date">Date</label><input id="f_date" type="date"></div>
+        <div><label data-i="machine">Machine</label>
+          <select id="f_type"><option value="Harvester">Harvester</option><option value="Tractor">Tractor</option></select></div>
+        <div><label data-i="unitSel">Charged by</label><select id="f_unit"><option value="hours">Hours / గంటలు</option><option value="acres">Acres / ఎకరాలు</option></select></div>
+        <div><label data-i="unit">Quantity</label><input id="f_qty" type="number" step="0.1" inputmode="decimal"></div>
+        <div><label data-i="rate">Rate (₹)</label><input id="f_rate" type="number" inputmode="decimal"></div>
+        <div class="full"><label data-i="amount">Amount (₹)</label><input id="f_amount" type="number" inputmode="decimal"></div>
+      </div>
+      <button class="btn" id="saveFarmer" data-i="save">Save</button>
+    </div>
+    <div class="card">
+      <h2 data-i="records">Records</h2>
+      <input id="searchBox" type="search" data-ph="search" placeholder="Search name / mobile / village" autocomplete="off" style="margin-bottom:6px">
+      <small id="searchCount"></small>
+      <div id="farmerList"></div>
+      <button class="btn alt" id="exportBtn" data-i="export">Export Excel</button>
+    </div>
+  </section>
+
+  <!-- EXPENSES -->
+  <section id="tab-expenses" class="wrap hide">
+    <div class="card">
+      <h2 data-i="dailyExp">Daily expenses</h2>
+      <div class="grid">
+        <div class="full"><label data-i="date">Date</label><input id="e_date" type="date"></div>
+        <div><label data-i="dieselL">Diesel (liters)</label><input id="e_dl" type="number" inputmode="decimal"></div>
+        <div><label data-i="dieselR">Diesel (₹)</label><input id="e_dr" type="number" inputmode="decimal"></div>
+        <div><label data-i="maint">Maintenance (₹)</label><input id="e_m" type="number" inputmode="decimal"></div>
+        <div><label data-i="food">Food (₹)</label><input id="e_f" type="number" inputmode="decimal"></div>
+        <div><label data-i="driver">Driver wages (₹)</label><input id="e_d" type="number" inputmode="decimal"></div>
+        <div><label data-i="misc">Misc (₹)</label><input id="e_x" type="number" inputmode="decimal"></div>
+      </div>
+      <button class="btn" id="saveExp" data-i="save">Save</button>
+    </div>
+    <div class="card"><h2 data-i="records">Records</h2><div id="expList"></div></div>
+  </section>
+
+  <!-- SUMMARY -->
+  <section id="tab-summary" class="wrap hide">
+    <div class="card">
+      <h2 data-i="today">Today</h2>
+      <div class="row"><span data-i="income">Income</span><b id="s_in">₹ 0</b></div>
+      <div class="row"><span data-i="expTotal">Expenses</span><b id="s_ex">₹ 0</b></div>
+      <div class="row big"><span data-i="net">Net profit</span><b id="s_net">₹ 0</b></div>
+    </div>
+    <div class="card">
+      <h2 data-i="allTime">All time</h2>
+      <div class="row"><span data-i="income">Income</span><b id="a_in">₹ 0</b></div>
+      <div class="row"><span data-i="expTotal">Expenses</span><b id="a_ex">₹ 0</b></div>
+      <div class="row big"><span data-i="net">Net profit</span><b id="a_net">₹ 0</b></div>
+    </div>
+  </section>
+
+</div></div>
+<script>
+(function(){
+
+const cv = document.getElementById('scene'), ctx = cv.getContext('2d');
+let W, H, dpr;
+function resize(){
+  dpr = Math.min(window.devicePixelRatio||1, 2);
+  W = innerWidth; H = innerHeight;
+  cv.width = W*dpr; cv.height = H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize', resize); resize();
+
+// ---- Sky colours by real local hour ----
+const keyframes = [
+  [0,  '#0b1330','#1b2a55'], [5,  '#2b3a6b','#f4a259'], [6.5,'#6fb1e8','#ffd9a0'],
+  [12, '#3f9be0','#bfe4ff'], [17, '#5aa0dc','#ffd199'], [18.5,'#e2724a','#ffb36b'],
+  [20, '#2a2f66','#7a4a7a'], [24, '#0b1330','#1b2a55']
+];
+const hex = h => [1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const mix = (a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+function skyAt(h){
+  for(let i=0;i<keyframes.length-1;i++){
+    const [h0,t0,b0]=keyframes[i],[h1,t1,b1]=keyframes[i+1];
+    if(h>=h0&&h<=h1){ const t=(h-h0)/(h1-h0);
+      return [mix(hex(t0),hex(t1),t), mix(hex(b0),hex(b1),t)]; }
+  }
+  return [hex(keyframes[0][1]),hex(keyframes[0][2])];
+}
+const rgb = c=>`rgb(${c[0]},${c[1]},${c[2]})`;
+
+// ---- Objects ----
+const clouds = Array.from({length:6},()=>({x:Math.random()*1200,y:40+Math.random()*140,s:.5+Math.random()*.9,v:.1+Math.random()*.25}));
+const birds  = Array.from({length:5},()=>({x:Math.random()*1200,y:60+Math.random()*120,v:.6+Math.random()*.6,p:Math.random()*6}));
+const stars  = Array.from({length:70},()=>({x:Math.random(),y:Math.random()*.5,r:Math.random()*1.4+.3}));
+let harvX = -200;
+
+function drawCloud(c,alpha){
+  ctx.fillStyle=`rgba(255,255,255,${alpha})`;
+  const {x,y,s}=c;
+  [[0,0,28],[26,-8,24],[52,0,28],[26,6,26]].forEach(([dx,dy,r])=>{
+    ctx.beginPath(); ctx.arc(x+dx*s,y+dy*s,r*s,0,7); ctx.fill();
+  });
+}
+
+function drawHarvester(x,y,s,night){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  // body
+  ctx.fillStyle='#F57F17'; ctx.fillRect(0,-34,70,26);
+  ctx.fillStyle='#1B5E20'; ctx.fillRect(48,-52,26,22);        // cab
+  ctx.fillStyle='rgba(200,230,255,.9)'; ctx.fillRect(53,-47,16,12);
+  // cutter bar at front
+  ctx.fillStyle='#8d6e63'; ctx.fillRect(74,-14,28,10);
+  // wheels
+  ctx.fillStyle='#222';
+  [[16,-4,12],[56,-4,10]].forEach(([wx,wy,r])=>{ctx.beginPath();ctx.arc(wx,wy,r,0,7);ctx.fill();});
+  if(night){ ctx.fillStyle='rgba(255,240,150,.35)';
+    ctx.beginPath(); ctx.moveTo(102,-12); ctx.lineTo(200,-40); ctx.lineTo(200,10); ctx.fill(); }
+  ctx.restore();
+}
+
+let t=0;
+function frame(){
+  t+=0.016;
+  const now=new Date();
+  const hour=now.getHours()+now.getMinutes()/60+now.getSeconds()/3600;
+  const [top,bot]=skyAt(hour);
+  const night = hour<5.5||hour>19.5;
+  const horizon=H*.58;
+
+  // sky
+  const g=ctx.createLinearGradient(0,0,0,horizon);
+  g.addColorStop(0,rgb(top)); g.addColorStop(1,rgb(bot));
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  // stars
+  if(night){ stars.forEach(s=>{ctx.fillStyle=`rgba(255,255,255,${.5+.5*Math.sin(t*2+s.x*10)})`;
+    ctx.beginPath();ctx.arc(s.x*W,s.y*H,s.r,0,7);ctx.fill();}); }
+
+  // sun / moon arc across the day
+  const dayT=(hour-6)/12;
+  if(dayT>=0&&dayT<=1){
+    const sx=W*(.08+.84*dayT), sy=horizon-Math.sin(dayT*Math.PI)*H*.38;
+    const glow=ctx.createRadialGradient(sx,sy,5,sx,sy,70);
+    glow.addColorStop(0,'rgba(255,230,140,.9)'); glow.addColorStop(1,'rgba(255,230,140,0)');
+    ctx.fillStyle=glow; ctx.fillRect(sx-80,sy-80,160,160);
+    ctx.fillStyle='#ffe082'; ctx.beginPath(); ctx.arc(sx,sy,24,0,7); ctx.fill();
+  } else {
+    const nh=(hour<6?hour+24:hour)-18, mt=Math.min(Math.max(nh/12,0),1);
+    const mx=W*(.08+.84*mt), my=horizon-Math.sin(mt*Math.PI)*H*.35;
+    ctx.fillStyle='#eceff1'; ctx.beginPath(); ctx.arc(mx,my,18,0,7); ctx.fill();
+  }
+
+  // clouds
+  clouds.forEach(c=>{ c.x+=c.v; if(c.x>W+120)c.x=-140; drawCloud(c,night?.25:.85); });
+
+  // birds (daytime)
+  if(!night){ ctx.strokeStyle='rgba(30,30,30,.7)'; ctx.lineWidth=1.6;
+    birds.forEach(b=>{ b.x+=b.v; if(b.x>W+20)b.x=-20;
+      const f=Math.sin(t*8+b.p)*5;
+      ctx.beginPath(); ctx.moveTo(b.x-8,b.y+f); ctx.quadraticCurveTo(b.x-4,b.y-4,b.x,b.y);
+      ctx.quadraticCurveTo(b.x+4,b.y-4,b.x+8,b.y+f); ctx.stroke(); });
+  }
+
+  // distant hills
+  ctx.fillStyle=night?'#12301a':'#2e7d32';
+  ctx.beginPath(); ctx.moveTo(0,horizon);
+  for(let x=0;x<=W;x+=20) ctx.lineTo(x,horizon-18-Math.sin(x*.01)*12-Math.sin(x*.023)*6);
+  ctx.lineTo(W,horizon+4); ctx.lineTo(0,horizon+4); ctx.fill();
+
+  // paddy field: rows of swaying stalks, denser and larger toward the viewer
+  const rows=14;
+  for(let r=0;r<rows;r++){
+    const p=r/(rows-1);
+    const y=horizon+4+p*p*(H-horizon);
+    const size=8+p*34;
+    const gap=10+p*26;
+    const base=mix(hex(night?'#1b3a1f':'#7cb342'),hex(night?'#0d2411':'#c0a62a'),Math.min(1,(hour>6&&hour<18?(1-Math.abs(hour-12)/6):0)*.2+p*.35));
+    ctx.strokeStyle=rgb(base); ctx.lineWidth=1.5+p*2.2;
+    ctx.beginPath();
+    for(let x=-gap;x<W+gap;x+=gap){
+      const wind=Math.sin(t*1.6+x*.015+r*.5)*size*.35;
+      ctx.moveTo(x,y); ctx.quadraticCurveTo(x+wind*.4,y-size*.6,x+wind,y-size);
+    }
+    ctx.stroke();
+    // grain heads
+    ctx.fillStyle=night?'#6b5a1f':'#f9c74f';
+    for(let x=-gap;x<W+gap;x+=gap){
+      const wind=Math.sin(t*1.6+x*.015+r*.5)*size*.35;
+      ctx.beginPath(); ctx.arc(x+wind,y-size,1+p*2.2,0,7); ctx.fill();
+    }
+  }
+
+  // harvester drives slowly across the field
+  harvX+=0.5; if(harvX>W+220) harvX=-220;
+  drawHarvester(harvX,H*.78,1.1,night);
+
+  // darken overlay at night for readability
+  if(night){ ctx.fillStyle='rgba(0,0,20,.18)'; ctx.fillRect(0,0,W,H); }
+
+  // UI text
+  const pad=n=>String(n).padStart(2,'0');
+  document.getElementById('clock').textContent=`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const phase = hour<5.5?'Quiet night in the fields':hour<8?'Sunrise over the paddy':hour<16?'Harvest time':hour<19?'Golden evening':'Night falls on the farm';
+  document.getElementById('phase').textContent=phase;
+
+  requestAnimationFrame(frame);
+}
+frame();
+
+
+})();
+</script>
+<script>
+// ================= CONFIG =================
+// Paste your Firebase web config here to turn on cloud sync. Leave null to work offline (saved on the phone).
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAlyOooXESVDJTRZJVPx9Fqa91Pv81thq8",
+  authDomain: "agriexpress-13682.firebaseapp.com",
+  projectId: "agriexpress-13682",
+  storageBucket: "agriexpress-13682.firebasestorage.app",
+  messagingSenderId: "489765110534",
+  appId: "1:489765110534:web:c98d10b4c2a15291b41487",
+  measurementId: "G-MZSLBVWLH4"
+};
+// Example:
+// const FIREBASE_CONFIG = { apiKey:"...", authDomain:"...", projectId:"...", appId:"..." };
+
+// ================= LANGUAGE =================
+let lang = localStorage.getItem('ax_lang') || 'en';
+const I = {
+  en:{farmers:'Farmers',expenses:'Expenses',summary:'Summary',newEntry:'New farmer entry',search:'Search name / mobile / village',found:'found',name:'Name',nameEn:'Name (English)',nameTe:'Name (Telugu)',village:'Village',mobile:'Mobile',date:'Date',machine:'Machine',unit:'Quantity (hours / acres)',unitSel:'Charged by',rate:'Rate (₹)',amount:'Amount (₹)',save:'Save',records:'Records',export:'Export Excel',dailyExp:'Daily expenses',dieselL:'Diesel (liters)',dieselR:'Diesel (₹)',maint:'Maintenance (₹)',food:'Food (₹)',driver:'Driver wages (₹)',misc:'Misc (₹)',today:'Today',allTime:'All time',income:'Income',expTotal:'Expenses',net:'Net profit',receipt:'Receipt',print:'Print',bt:'Bluetooth',del:'Delete',none:'No records yet',fill:'Please enter name and amount',thanks:'Thank you!',saved:'Saved ✓',enterSome:'Enter something first'},
+  te:{farmers:'రైతులు',expenses:'ఖర్చులు',summary:'సారాంశం',newEntry:'కొత్త రైతు నమోదు',search:'పేరు / మొబైల్ / గ్రామం వెతకండి',found:'దొరికాయి',name:'పేరు',nameEn:'పేరు (ఇంగ్లీష్)',nameTe:'పేరు (తెలుగు)',village:'గ్రామం',mobile:'మొబైల్',date:'తేదీ',machine:'యంత్రం',unit:'సంఖ్య (గంటలు / ఎకరాలు)',unitSel:'లెక్కింపు',rate:'రేటు (₹)',amount:'మొత్తం (₹)',save:'సేవ్ చేయి',records:'రికార్డులు',export:'ఎక్సెల్ ఎగుమతి',dailyExp:'రోజువారీ ఖర్చులు',dieselL:'డీజిల్ (లీటర్లు)',dieselR:'డీజిల్ (₹)',maint:'నిర్వహణ (₹)',food:'భోజనం (₹)',driver:'డ్రైవర్ వేతనం (₹)',misc:'ఇతర (₹)',today:'ఈ రోజు',allTime:'మొత్తం',income:'ఆదాయం',expTotal:'ఖర్చులు',net:'నికర లాభం',receipt:'రసీదు',print:'ప్రింట్',bt:'బ్లూటూత్',del:'తొలగించు',none:'రికార్డులు లేవు',fill:'పేరు మరియు మొత్తం నమోదు చేయండి',thanks:'ధన్యవాదాలు!',saved:'సేవ్ అయింది ✓',enterSome:'ముందు వివరాలు నమోదు చేయండి'}
+};
+const t = k => I[lang][k] || k;
+let toastTimer;
+function toast(msg, warn){ const el = document.getElementById('toast'); el.textContent = msg; el.className = 'show' + (warn ? ' warn' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = '', 1800); }
+function applyLang(){
+  document.querySelectorAll('[data-i]').forEach(e => e.textContent = t(e.dataset.i));
+  document.querySelectorAll('[data-ph]').forEach(e => e.placeholder = t(e.dataset.ph));
+  document.getElementById('langBtn').textContent = lang === 'en' ? 'తెలుగు' : 'English';
+  render();
+}
+
+// ================= STORAGE (local + optional Firebase) =================
+const db = { farmers:[], expenses:[] };
+let fstore = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => parseFloat(v) || 0;
+const today = () => new Date().toISOString().slice(0,10);
+
+function loadLocal(){ ['farmers','expenses'].forEach(k => { try { db[k] = JSON.parse(localStorage.getItem('ax_'+k) || '[]'); } catch(e){ db[k] = []; } }); }
+function persist(k){ localStorage.setItem('ax_'+k, JSON.stringify(db[k])); }
+function setSync(txt){ $('sync').textContent = txt; }
+
+function loadScript(src){ return new Promise((res,rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
+
+let unsubs = [];
+function startSync(){
+  if(unsubs.length) return;
+  ['farmers','expenses'].forEach(k => {
+    let checked = false;
+    unsubs.push(fstore.collection(k).onSnapshot(snap => {
+      // first time online with an empty cloud: upload what is already on this phone
+      if(!checked && !snap.metadata.fromCache){
+        checked = true;
+        if(snap.empty && db[k].length){ db[k].forEach(it => fstore.collection(k).doc(it.id).set(it)); setSync('⏳ Uploading'); return; }
+      }
+      db[k] = snap.docs.map(d => d.data()).sort((a,b) => b.createdAt - a.createdAt);
+      persist(k); render();
+      setSync(snap.metadata.hasPendingWrites ? '⏳ Syncing' : '🟢 Live');
+    }, err => setSync('🔒 ' + (err.code || 'error'))));
+  });
+}
+function stopSync(){ unsubs.forEach(u => { try{ u(); }catch(e){} }); unsubs = []; }
+
+async function initFirebase(){
+  if(!FIREBASE_CONFIG){ setSync('📴 Offline'); return; }
+  try{
+    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
+    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
+    firebase.initializeApp(FIREBASE_CONFIG);
+    fstore = firebase.firestore();
+    try { await fstore.enablePersistence({synchronizeTabs:true}); } catch(e){}
+    const auth = firebase.auth();
+    const doLogin = async () => {
+      $('loginErr').textContent = '';
+      try{ await auth.signInWithEmailAndPassword($('loginEmail').value.trim(), $('loginPass').value); $('loginPass').value = ''; }
+      catch(e){
+        const bad = ['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email'];
+        $('loginErr').textContent = bad.includes(e.code) ? 'Wrong email or password' : (e.code === 'auth/network-request-failed' ? 'No internet' : (e.code || 'Login failed'));
+      }
+    };
+    $('loginBtn').onclick = doLogin;
+    $('loginPass').addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); doLogin(); } });
+    $('logoutBtn').onclick = () => auth.signOut();
+    auth.onAuthStateChanged(u => {
+      if(u){ $('login').classList.add('hide'); $('logoutBtn').style.display = 'inline-block'; startSync(); }
+      else { stopSync(); $('login').classList.remove('hide'); $('logoutBtn').style.display = 'none'; setSync('🔒 Login'); }
+    });
+  }catch(e){ setSync('📴 Offline'); }
+}
+
+function save(k, item){
+  item.id = 'i' + Date.now() + Math.random().toString(36).slice(2,6);
+  item.createdAt = Date.now();
+  db[k].unshift(item); persist(k);
+  if(fstore) fstore.collection(k).doc(item.id).set(item);
+  render();
+}
+function removeItem(k, id){
+  db[k] = db[k].filter(x => x.id !== id); persist(k);
+  if(fstore) fstore.collection(k).doc(id).delete();
+  render();
+}
+
+// ================= RENDER =================
+const sum = (arr, f) => arr.reduce((s,x) => s + f(x), 0);
+const expTotal = e => num(e.dieselR) + num(e.maint) + num(e.food) + num(e.driver) + num(e.misc);
+const inr = n => '₹ ' + Math.round(n).toLocaleString('en-IN');
+
+let query = '';
+function render(){
+  const qn = query.trim().toLowerCase();
+  const shown = qn ? db.farmers.filter(f => [f.name, f.nameTe, f.village, f.mobile].some(v => String(v || '').toLowerCase().includes(qn))) : db.farmers;
+  $('searchCount').textContent = qn ? shown.length + ' ' + t('found') : '';
+  $('farmerList').innerHTML = shown.length ? shown.map(f => `
+    <div class="item">
+      <div><b>${esc([f.name, f.nameTe].filter(Boolean).join(' / '))}</b> · ${esc(f.village)}<br><small>${esc(f.date)} · ${esc(f.type)} ${esc(f.qty)} × ₹${esc(f.rate)}${f.mobile ? ' · 📞 ' + esc(f.mobile) : ''}</small></div>
+      <div class="amt">${inr(num(f.amount))}</div>
+      <div class="acts" data-id="${f.id}">
+        <button data-a="wa">WhatsApp</button><button data-a="sms">SMS</button>
+        <button data-a="print">${t('print')}</button><button data-a="bt">${t('bt')}</button>
+        <button data-a="del" class="red">${t('del')}</button>
+      </div>
+    </div>`).join('') : `<small>${t('none')}</small>`;
+
+  $('expList').innerHTML = db.expenses.length ? db.expenses.map(e => `
+    <div class="item">
+      <div><b>${esc(e.date)}</b><br><small>${t('dieselR')}: ${esc(e.dieselR||0)} (${esc(e.dieselL||0)} L) · ${t('maint')}: ${esc(e.maint||0)} · ${t('food')}: ${esc(e.food||0)} · ${t('driver')}: ${esc(e.driver||0)} · ${t('misc')}: ${esc(e.misc||0)}</small></div>
+      <div class="amt">${inr(expTotal(e))}</div>
+      <div class="acts" data-id="${e.id}"><button data-a="delx" class="red">${t('del')}</button></div>
+    </div>`).join('') : `<small>${t('none')}</small>`;
+
+  const td = today();
+  const inT = sum(db.farmers.filter(f => f.date === td), f => num(f.amount));
+  const exT = sum(db.expenses.filter(e => e.date === td), expTotal);
+  const inA = sum(db.farmers, f => num(f.amount));
+  const exA = sum(db.expenses, expTotal);
+  $('s_in').textContent = inr(inT); $('s_ex').textContent = inr(exT); $('s_net').textContent = inr(inT - exT);
+  $('a_in').textContent = inr(inA); $('a_ex').textContent = inr(exA); $('a_net').textContent = inr(inA - exA);
+}
+
+// ================= FORMS =================
+function calcAmount(){ const a = num($('f_qty').value) * num($('f_rate').value); if(a) $('f_amount').value = a; }
+$('f_qty').addEventListener('input', calcAmount);
+$('f_rate').addEventListener('input', calcAmount);
+
+$('saveFarmer').onclick = () => {
+  const name = $('f_name').value.trim(), nameTe = $('f_name_te').value.trim(), amount = num($('f_amount').value);
+  if(!name && !nameTe && !amount){ toast(t('enterSome'), true); return; }
+  save('farmers', { name, nameTe, village:$('f_village').value.trim(), mobile:$('f_mobile').value.trim(),
+    date:$('f_date').value || today(), type:$('f_type').value, unit:$('f_unit').value, time:new Date().toTimeString().slice(0,5), qty:num($('f_qty').value), rate:num($('f_rate').value), amount });
+  ['f_name','f_name_te','f_village','f_mobile','f_qty','f_rate','f_amount'].forEach(i => $(i).value = '');
+  toast(t('saved'));
+};
+
+$('saveExp').onclick = () => {
+  const e = { date:$('e_date').value || today(), dieselL:num($('e_dl').value), dieselR:num($('e_dr').value),
+    maint:num($('e_m').value), food:num($('e_f').value), driver:num($('e_d').value), misc:num($('e_x').value) };
+  if(!expTotal(e) && !e.dieselL){ toast(t('enterSome'), true); return; }
+  save('expenses', e);
+  toast(t('saved'));
+  ['e_dl','e_dr','e_m','e_f','e_d','e_x'].forEach(i => $(i).value = '');
+};
+
+$('f_date').value = today(); $('e_date').value = today();
+$('searchBox').addEventListener('input', ev => { query = ev.target.value; render(); });
+document.querySelectorAll('#tab-farmers input').forEach(i => i.addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); $('saveFarmer').click(); } }));
+document.querySelectorAll('#tab-expenses input').forEach(i => i.addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); $('saveExp').click(); } }));
+
+// ================= TABS & LANGUAGE BUTTON =================
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  ['farmers','expenses','summary'].forEach(n => $('tab-'+n).classList.toggle('hide', n !== b.dataset.tab));
+});
+$('langBtn').onclick = () => { lang = lang === 'en' ? 'te' : 'en'; localStorage.setItem('ax_lang', lang); applyLang(); };
+
+// ================= TRANSLATE / TRANSLITERATE =================
+async function getJSON(url){ const r = await fetch(url); if(!r.ok) throw new Error('http ' + r.status); return r.json(); }
+async function xlate(text, dir){
+  const [from, to] = dir.split('|');
+  if(from === 'en'){            // names: sound-alike Telugu spelling (Ravi -> రవి)
+    try{
+      const j = await getJSON('https://inputtools.google.com/request?text=' + encodeURIComponent(text) + '&itc=te-t-i0-und&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8&app=agriexpress');
+      if(j[0] === 'SUCCESS'){ const out = j[1].map(x => x[1][0]).join(' ').trim(); if(out) return out; }
+    }catch(e){}
+  }
+  try{
+    const j = await getJSON('https://translate.googleapis.com/translate_a/single?client=gtx&sl=' + from + '&tl=' + to + '&dt=t&q=' + encodeURIComponent(text));
+    const out = j[0].map(x => x[0]).join('').trim(); if(out) return out;
+  }catch(e){}
+  try{
+    const j = await getJSON('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=' + from + '|' + to);
+    const out = j.responseData && j.responseData.translatedText; if(out) return out;
+  }catch(e){}
+  return null;
+}
+
+document.querySelectorAll('[data-tr]').forEach(b => b.onclick = async () => {
+  const inp = $(b.dataset.tr), text = inp.value.trim();
+  if(!text){ toast(t('enterSome'), true); return; }
+  const dir = b.dataset.dir || (/[ఀ-౿]/.test(text) ? 'te|en' : 'en|te');
+  const old = b.textContent; b.textContent = '…';
+  const out = await xlate(text, dir);
+  b.textContent = old;
+  if(out){ (b.dataset.to ? $(b.dataset.to) : inp).value = out; }
+  else toast('Translation needs internet', true);
+});
+
+// ================= VOICE INPUT =================
+document.querySelectorAll('[data-mic]').forEach(b => b.onclick = () => {
+  const R = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!R){ toast('Voice not supported here. Open in Chrome.', true); return; }
+  const r = new R();
+  r.lang = b.dataset.ml || (lang === 'te' ? 'te-IN' : 'en-IN');
+  r.interimResults = false; r.maxAlternatives = 1;
+  b.textContent = '🔴'; toast('🎤 Listening…');
+  r.onresult = async ev => {
+    const txt = ev.results[0][0].transcript;
+    $(b.dataset.mic).value = txt;
+    const trb = b.parentElement.querySelector('[data-tr]');
+    if(trb && trb.dataset.to){ const out = await xlate(txt, trb.dataset.dir); if(out) $(trb.dataset.to).value = out; }
+  };
+  r.onerror = ev => {
+    const m = { 'not-allowed':'Allow microphone permission', 'service-not-allowed':'Allow microphone permission', 'no-speech':'No speech heard, try again', 'audio-capture':'No microphone found', 'network':'Voice needs internet' };
+    toast(m[ev.error] || ('Voice error: ' + ev.error), true);
+  };
+  r.onend = () => { b.textContent = '🎤'; };
+  try{ r.start(); }catch(e){ b.textContent = '🎤'; toast('Could not start voice', true); }
+});
+
+// ================= RECEIPT / SHARE / PRINT =================
+const RS = n => '₹ ' + Number(n || 0).toLocaleString('en-IN');
+const dmy = d => String(d || '').split('-').reverse().join('-');
+function recRows(f){
+  const hrs = (f.unit || 'hours') !== 'acres';
+  const nm = f.name && f.nameTe ? f.name + ' (' + f.nameTe + ')' : (f.name || f.nameTe || '');
+  const rows = [['Date / తేదీ', dmy(f.date)]];
+  if(f.time) rows.push(['Time / సమయం', f.time]);
+  rows.push(['Farmer / రైతు', nm]);
+  if(f.village) rows.push(['Village / గ్రామం', f.village]);
+  if(f.mobile) rows.push(['Mobile / మొబైల్', f.mobile]);
+  rows.push(['Machine / యంత్రం', f.type === 'Tractor' ? 'Tractor (ట్రాక్టర్)' : 'Harvester (హార్వెస్టర్)']);
+  rows.push([hrs ? 'Hours / గంటలు' : 'Acres / ఎకరాలు', Number(f.qty || 0).toFixed(1)]);
+  rows.push([hrs ? 'Rate per hour / గంట రేటు' : 'Rate per acre / ఎకరా రేటు', RS(f.rate)]);
+  return rows;
+}
+const SHOP_SUB = 'Harvester & Tractor Services', SHOP_SUB_TE = 'హార్వెస్టర్ & ట్రాక్టర్ సేవలు';
+// WhatsApp / SMS text (English + Telugu)
+function receiptText(f){
+  return ['*AgriExpress*', SHOP_SUB + ' / ' + SHOP_SUB_TE, '------------------------',
+    ...recRows(f).map(([k,v]) => k + ': ' + v),
+    '*Total Rent / మొత్తం: ' + RS(f.amount) + '*', '------------------------', 'Thank you / ధన్యవాదాలు'].join('\n');
+}
+// Thermal printer text: English only, plain characters (printers have no Telugu font)
+function printerText(f){
+  const W = 32, line = '-'.repeat(W), c = x => ' '.repeat(Math.max(0, Math.floor((W - x.length) / 2))) + x;
+  const hrs = (f.unit || 'hours') !== 'acres';
+  const rs = n => 'Rs.' + Number(n || 0).toLocaleString('en-IN');
+  const out = [c('AgriExpress'), c(SHOP_SUB), line, 'Date: ' + dmy(f.date)];
+  if(f.time) out.push('Time: ' + f.time);
+  out.push('Farmer: ' + (f.name || '-'));
+  if(f.village) out.push('Village: ' + f.village);
+  if(f.mobile) out.push('Mobile: ' + f.mobile);
+  out.push('Machine: ' + (f.type || 'Harvester'), (hrs ? 'Hours: ' : 'Acres: ') + Number(f.qty || 0).toFixed(1),
+    (hrs ? 'Rate/hour: ' : 'Rate/acre: ') + rs(f.rate), line, 'TOTAL: ' + rs(f.amount), line, c('Thank you'));
+  return out.join('\n');
+}
+// Full receipt page for viewing, printing and saving as PDF
+function receiptHTML(f){
+  const rows = recRows(f).map(([k,v]) => '<tr><td>' + esc(k) + '</td><td>: ' + esc(v) + '</td></tr>').join('');
+  const svg = '<svg viewBox="0 0 150 58" width="130" aria-hidden="true"><path d="M7 54C7 40 9 30 13 20M13 54C13 42 16 34 21 26" stroke="#1B5E20" stroke-width="2" fill="none"/><ellipse cx="13" cy="19" rx="2.4" ry="5" fill="#F9A825"/><ellipse cx="21" cy="25" rx="2.4" ry="5" fill="#F9A825"/><rect x="26" y="24" width="62" height="18" rx="3" fill="#F57F17"/><rect x="64" y="9" width="26" height="19" rx="3" fill="#1B5E20"/><rect x="69" y="13" width="16" height="9" fill="#cfe9ff"/><rect x="90" y="34" width="40" height="8" rx="2" fill="#8d6e63"/><circle cx="41" cy="46" r="9" fill="#222"/><circle cx="76" cy="46" r="7" fill="#222"/></svg>';
+  return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AgriExpress receipt</title><style>'
+   + "body{margin:0;background:#e8e8e8;font-family:system-ui,'Noto Sans Telugu',sans-serif;color:#111}"
+   + '.r{max-width:400px;margin:12px auto;background:#fff;padding:16px 18px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.2)}'
+   + 'h1{margin:0;text-align:center;font-size:26px;color:#1B5E20}.sub{text-align:center;font-weight:700;font-size:14px;margin-top:2px}.sub2{text-align:center;font-size:14px}'
+   + 'table{width:100%;border-collapse:collapse;margin-top:10px}td{padding:3px 0;font-size:15px;vertical-align:top}td:first-child{width:47%;color:#333}td:last-child{font-weight:700}'
+   + '.tot td{font-size:18px;padding-top:6px;color:#1B5E20}.dash{border-top:2px dashed #999;margin:8px 0}.thx{text-align:center;font-weight:700;margin:6px 0 8px}'
+   + '.ft{display:flex;align-items:center;justify-content:space-between;gap:8px}.ft b{font-size:18px;color:#1B5E20}.ft small{display:block;font-size:12px;color:#444}'
+   + '.btns{max-width:400px;margin:8px auto;padding:0 12px}button{width:100%;padding:13px;border:0;border-radius:10px;background:#F57F17;color:#fff;font-weight:700;font-size:16px}'
+   + '@media print{body{background:#fff}.r{box-shadow:none;margin:0 auto}.btns{display:none}}'
+   + '</style></head><body><div class="r"><h1>AgriExpress</h1><div class="sub">' + SHOP_SUB + '</div><div class="sub2">' + SHOP_SUB_TE + '</div>'
+   + '<div class="dash"></div><table>' + rows + '<tr class="tot"><td>Total Rent / మొత్తం</td><td>: ' + esc(RS(f.amount)) + '</td></tr></table>'
+   + '<div class="dash"></div><div class="thx">Thank you / ధన్యవాదాలు</div>'
+   + '<div class="ft">' + svg + '<div style="text-align:right"><b>AgriExpress</b><small>Your trusted partner in harvest</small><small>మీ పంటకు నమ్మకమైన తోడు</small></div></div></div>'
+   + '<div class="btns"><button onclick="window.print()">Print / Save as PDF</button></div></body></html>';
+}
+function findItem(k, id){ return db[k].find(x => x.id === id); }
+
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest('.acts button'); if(!b) return;
+  const id = b.parentElement.dataset.id, a = b.dataset.a;
+  if(a === 'delx'){ if(confirm(t('del') + '?')) removeItem('expenses', id); return; }
+  const f = findItem('farmers', id); if(!f) return;
+  if(a === 'del'){ if(confirm(t('del') + '?')) removeItem('farmers', id); }
+  else if(a === 'wa'){ const p = f.mobile ? '91' + f.mobile.replace(/\D/g,'').slice(-10) : ''; window.open('https://wa.me/' + p + '?text=' + encodeURIComponent(receiptText(f)), '_blank'); }
+  else if(a === 'sms'){ location.href = 'sms:' + (f.mobile || '') + '?body=' + encodeURIComponent(receiptText(f)); }
+  else if(a === 'print'){
+    const w = window.open('', '_blank');
+    if(!w){ toast('Allow pop-ups to see the receipt', true); return; }
+    w.document.write(receiptHTML(f)); w.document.close();   // tap "Print / Save as PDF" on the receipt page
+  }
+  else if(a === 'bt'){ printBluetooth(printerText(f) + '\n\n\n'); }
+});
+
+async function printBluetooth(text){
+  if(!navigator.bluetooth){ alert('Web Bluetooth is not supported here. Use Chrome on Android.'); return; }
+  try{
+    const dev = await navigator.bluetooth.requestDevice({ acceptAllDevices:true, optionalServices:['000018f0-0000-1000-8000-00805f9b34fb'] });
+    const server = await dev.gatt.connect();
+    const svc = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+    const ch = await svc.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+    const data = new TextEncoder().encode('\x1b@' + text);
+    for(let i = 0; i < data.length; i += 100) await ch.writeValue(data.slice(i, i + 100));
+  }catch(e){ alert('Printer error: ' + e.message); }
+}
+
+// ================= EXCEL EXPORT =================
+$('exportBtn').onclick = async () => {
+  if(!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(db.farmers.map(f => ({ Date:f.date, Name_English:f.name, Name_Telugu:f.nameTe, Village:f.village, Mobile:f.mobile, Machine:f.type, Qty:f.qty, Rate:f.rate, Amount:f.amount }))), 'Farmers');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(db.expenses.map(e => ({ Date:e.date, DieselLiters:e.dieselL, DieselRs:e.dieselR, Maintenance:e.maint, Food:e.food, Driver:e.driver, Misc:e.misc, Total:expTotal(e) }))), 'Expenses');
+  XLSX.writeFile(wb, 'AgriExpress-' + today() + '.xlsx');
+};
+
+// ================= START =================
+loadLocal(); applyLang(); initFirebase();
+
+</script>
+</body>
+</html>
